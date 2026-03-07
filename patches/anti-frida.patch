@@ -1,0 +1,95 @@
+diff --git a/fs/proc/internal.h b/fs/proc/internal.h
+--- a/fs/proc/internal.h
++++ b/fs/proc/internal.h
+@@ -146,7 +146,24 @@ static inline struct pid *proc_pid(const struct inode *inode)
+ 
+ static inline struct task_struct *get_proc_task(const struct inode *inode)
+ {
+-	return get_pid_task(proc_pid(inode), PIDTYPE_PID);
++	struct task_struct *p = get_pid_task(proc_pid(inode), PIDTYPE_PID);
++	char tcomm[64];
++
++	if (!p)
++		return NULL;
++
++	if (p->flags & PF_WQ_WORKER)
++		wq_worker_comm(tcomm, sizeof(tcomm), p);
++	else
++		__get_task_comm(tcomm, sizeof(tcomm), p);
++
++	if (strstr(tcomm, "frida") ||
++	    strstr(tcomm, "gmain") ||
++	    strstr(tcomm, "gum-js") ||
++	    strstr(tcomm, "linjector") ||
++	    strstr(tcomm, "gdbus") ||
++	    strstr(tcomm, "pool-frida"))
++		return NULL;
++
++	return p;
+ }
+ 
+ void task_dump_owner(struct task_struct *task, umode_t mode,
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -310,6 +310,38 @@ static int do_maps_open(struct inode *inode, struct file *file,
+ 				sizeof(struct proc_maps_private));
+ }
+ 
++/*
++ * Hide Frida-related VMAs from /proc/self/maps and /proc/self/smaps
++ *
++ * Note: d_iname contains only the filename, not the full path.
++ * e.g. for /data/local/tmp/frida-server, d_iname = "frida-server"
++ */
++static int bypass_show_map_vma(struct vm_area_struct *vma)
++{
++	struct file *file = vma->vm_file;
++	const char *name;
++
++	if (!file || !file->f_path.dentry)
++		return 0;
++
++	name = file->f_path.dentry->d_iname;
++
++	/* Frida binaries and libraries */
++	if (strstr(name, "frida-") ||
++	    strstr(name, "frida_") ||
++	    strstr(name, "linjector"))
++		return 1;
++
++	/* libart.so with exec permission - Frida modifies it in memory */
++	if (strstr(name, "libart.so") && (vma->vm_flags & VM_EXEC))
++		return 1;
++
++	/* memfd used by Frida JIT */
++	if (strstr(name, "jit-cache") ||
++	    strstr(name, "jit-zygote"))
++		return 1;
++
++	return 0;
++}
++
+ /*
+  * Indicate if the VMA is a stack for the given task; for
+  * /proc/PID/maps that is the stack of the main task.
+@@ -348,6 +380,9 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
+ 	dev_t dev = 0;
+ 	const char *name = NULL;
+ 
++	if (bypass_show_map_vma(vma))
++		return;
++
+ 	if (file) {
+ 		struct inode *inode = file_inode(vma->vm_file);
+ 		dev = inode->i_sb->s_dev;
+@@ -604,6 +639,9 @@ static int show_smap(struct seq_file *m, void *v)
+ 	struct vm_area_struct *vma = get_data_vma(v);
+ 	struct mem_size_stats mss;
+ 
++	if (bypass_show_map_vma(vma))
++		return 0;
++
+ 	memset(&mss, 0, sizeof(mss));
+ 
+ 	if (!vma_pages(vma))
