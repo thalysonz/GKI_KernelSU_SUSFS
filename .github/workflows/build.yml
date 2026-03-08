@@ -324,7 +324,23 @@ jobs:
         fi
         chmod +x "$SCRIPT"
         bash "$SCRIPT" "$GITHUB_WORKSPACE/kernel/common"
-                  
+        
+    - name: Verify Patched Files Syntax
+      if: ${{ steps.parse.outputs.kernel_version == '5.10' }}
+      working-directory: ${{ github.workspace }}/kernel/common
+      run: |
+        echo "=== internal.h get_proc_task ==="
+        sed -n '/get_proc_task/,/^}/p' fs/proc/internal.h
+        echo ""
+        echo "=== task_mmu.c bypass_show_map_vma ==="
+        sed -n '/bypass_show_map_vma/,/^}/p' fs/proc/task_mmu.c | head -40
+        echo ""
+        echo "=== array.c tracer lines ==="
+        grep -n -A2 -B2 "tracer\|TracerPid" fs/proc/array.c
+        echo ""
+        echo "=== fd.c frida lines ==="
+        grep -n -A5 "hide frida" fs/proc/fd.c  
+
     - name: Build Kernel
       working-directory: ${{ github.workspace }}/kernel
       run: |
