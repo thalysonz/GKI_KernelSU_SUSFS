@@ -304,37 +304,23 @@ jobs:
           cat common/drivers/android/Makefile
         fi
 
-    - name: Apply Kernel Branding
-      uses: ./.github/actions/apply-kernel-branding
-      with:
-        build_type: ${{ inputs.variant || 'Normal' }}
-        kernel_version: ${{ steps.parse.outputs.kernel_version }}
-
     - name: Clean Kernel Flags
       uses: ./.github/actions/clean-kernel-flags
 
     - name: Apply Anti-Frida Patches
       if: ${{ steps.parse.outputs.kernel_version == '5.10' }}
-      run: |
-        set -e
-        python3 "$GITHUB_WORKSPACE/patches/anti-frida.py" "$GITHUB_WORKSPACE/kernel/common"
-    
-    - name: Verify Patched Files Syntax
-      if: ${{ steps.parse.outputs.kernel_version == '5.10' }}
       working-directory: ${{ github.workspace }}/kernel/common
       run: |
-        echo "=== internal.h get_proc_task ==="
-        sed -n '/get_proc_task/,/^}/p' fs/proc/internal.h
-        echo ""
-        echo "=== task_mmu.c bypass_show_map_vma ==="
-        sed -n '/bypass_show_map_vma/,/^}/p' fs/proc/task_mmu.c | head -40
-        echo ""
-        echo "=== array.c tracer lines ==="
-        grep -n -A2 -B2 "tracer\|TracerPid" fs/proc/array.c
-        echo ""
-        echo "=== fd.c frida lines ==="
-        grep -n -A5 "hide frida" fs/proc/fd.c  
-              
+        set -e
+        PATCH="$GITHUB_WORKSPACE/patches/anti-frida.patch"
+        if [ ! -f "$PATCH" ]; then
+          echo "ERROR: anti-frida.patch not found!"
+          exit 1
+        fi
+        echo "Applying anti-frida patches..."
+        patch -p1 -F 3 < "$PATCH"
+        echo "Patches applied successfully!"
+
     - name: Build Kernel
       working-directory: ${{ github.workspace }}/kernel
       run: |

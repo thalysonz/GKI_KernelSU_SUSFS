@@ -1,7 +1,7 @@
 diff --git a/fs/proc/internal.h b/fs/proc/internal.h
 --- a/fs/proc/internal.h
 +++ b/fs/proc/internal.h
-@@ -146,7 +146,24 @@ static inline struct pid *proc_pid(const struct inode *inode)
+@@ -142,7 +142,26 @@ static inline struct pid *proc_pid(const struct inode *inode)
  
  static inline struct task_struct *get_proc_task(const struct inode *inode)
  {
@@ -32,7 +32,7 @@ diff --git a/fs/proc/internal.h b/fs/proc/internal.h
 diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
 --- a/fs/proc/task_mmu.c
 +++ b/fs/proc/task_mmu.c
-@@ -310,6 +310,38 @@ static int do_maps_open(struct inode *inode, struct file *file,
+@@ -310,6 +310,40 @@ static int do_maps_open(struct inode *inode, struct file *file,
  				sizeof(struct proc_maps_private));
  }
  
