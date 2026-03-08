@@ -315,27 +315,15 @@ jobs:
 
     - name: Apply Anti-Frida Patches
       if: ${{ steps.parse.outputs.kernel_version == '5.10' }}
-      working-directory: ${{ github.workspace }}/kernel/common
       run: |
         set -e
-        PATCH_FILE="$GITHUB_WORKSPACE/patches/anti-frida.patch"
-        
-        if [ ! -f "$PATCH_FILE" ]; then
-          echo "ERROR: anti-frida.patch not found!"
+        SCRIPT="$GITHUB_WORKSPACE/patches/anti-frida.sh"
+        if [ ! -f "$SCRIPT" ]; then
+          echo "ERROR: anti-frida.sh not found!"
           exit 1
         fi
-        
-        echo "Applying anti-frida kernel patches..."
-        git apply --check "$PATCH_FILE" || {
-          echo "ERROR: Patch cannot be applied cleanly. Review the patch against current source."
-          echo "--- Showing conflict details ---"
-          git apply --reject "$PATCH_FILE" || true
-          find . -name '*.rej' -exec echo "REJECT: {}" \; -exec cat {} \;
-          exit 1
-        }
-        
-        git apply "$PATCH_FILE"
-        echo "Anti-frida patches applied successfully!"
+        chmod +x "$SCRIPT"
+        bash "$SCRIPT" "$GITHUB_WORKSPACE/kernel/common"
                   
     - name: Build Kernel
       working-directory: ${{ github.workspace }}/kernel
